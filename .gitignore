@@ -1,11 +1,77 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.Python
+
+# Virtual environments
 .venv/
 venv/
-*.egg-info/
-dist/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Build and distribution
 build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing and coverage
 .pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.cache/
+
+# Logs and runtime data
 *.log
 sessions/
+*.pid
+
+# Environment variables and secrets
+.env
+.envrc
+
+# IDEs and editors
+.idea/
+.vscode/
+.spyderproject
+.spyproject
+.ropeproject
+
+# Python tools
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+.pybuilder/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Other temporary files
+tempCodeRunnerFile.py
