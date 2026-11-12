@@ -1,0 +1,14 @@
+# Pinned to exact versions on purpose: bootloader_probe.py and
+# security_audit.py parse esptool/espefuse's TEXT output by matching
+# specific phrases (e.g. "Chip is", "Detected flash size:"). That wording
+# can change between esptool releases, which would silently break chip/
+# flash-size detection (no crash -- the parsed field just becomes None).
+#
+# These are the last versions actually reviewed against this codebase.
+# Before the competition: install these EXACT versions on the machine you
+# will really use, run `python3 main.py --port <your test board>` once,
+# and confirm chip_id / flash_id still populate correctly. If you need a
+# newer esptool for a newer chip, re-verify the parsing in
+# bootloader_probe.py and security_audit.py against its actual output.
+pyserial==3.5
+esptool==4.8.1
