@@ -1,287 +1,534 @@
-<div align="center">
+# Shahin Extractor
 
-# 🦅 Shahin Extractor
+**Automated Firmware Acquisition, Security Assessment, and Binary Analysis for ESP-Based Devices**
 
-**A dual-engine UART extraction & firmware-security diagnostics framework for ESP8266 / ESP32 targets — built for hardware CTF competitions.**
+Shahin Extractor is a Python-based firmware acquisition and analysis framework designed for ESP-family microcontrollers. It combines bootloader-level firmware acquisition, UART-based software inspection, automated binary analysis, security configuration assessment, and structured evidence reporting in a unified workflow.
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-ESP8266%20%7C%20ESP32-orange)]()
-[![Interface](https://img.shields.io/badge/interface-UART%20only-lightgrey)]()
-[![Status](https://img.shields.io/badge/status-active-success)]()
+The project is designed to help security researchers, embedded developers, and hardware CTF participants investigate firmware exposure, identify potentially sensitive information, inspect device security configurations, and organize extracted evidence for further analysis.
 
-*Built purely on the rules of a real hardware CTF: a multimeter, a USB-TTL adapter, and jumper wires — nothing else.*
-
-</div>
+Rather than relying on a single extraction technique, Shahin Extractor uses two complementary acquisition engines alongside a shared analysis and reporting pipeline.
 
 ---
 
-## Overview
+## Key Features
 
-**Shahin Extractor** was built for **hardware CTF (Capture The Flag) competitions** and hands-on embedded security education — the kind of environment where you're handed an unknown ESP8266/ESP32 board with a multimeter, a USB-TTL adapter, and jumper wires, and nothing else. No JTAG/SWD probe. No desoldering. No internet access to look things up mid-competition.
+- **Dual-engine acquisition architecture** combining ESP ROM bootloader communication and UART-based software inspection.
+- **Automated firmware acquisition** through the ESP ROM bootloader interface.
+- **Bootloader synchronization fallback** with an alternative no-stub connection method.
+- **ESP security configuration assessment** using chip security information and eFuse analysis.
+- **UART console discovery** with ecosystem-aware command probing.
+- **Automatic baud-rate discovery** across commonly used ESP UART speeds.
+- **Firmware static analysis** including string extraction, entropy analysis, and sensitive-pattern detection.
+- **Automated content extraction** for JSON, environment variables, key-value data, and Base64 candidates.
+- **Binary intelligence analysis** for identifying printable regions and potentially meaningful configuration data.
+- **Firmware deobfuscation** using multiple heuristic techniques.
+- **NVS analysis** for extracting namespaces, entries, strings, integers, and blob data.
+- **Partition table parsing and extraction** for supported ESP firmware layouts.
+- **Optional filesystem carving** for SPIFFS and LittleFS-related data.
+- **Evidence correlation** across multiple analysis modules.
+- **Automated diagnosis reports** with ranked findings and extraction status.
+- **Structured JSON, CSV, SQLite, and text-based reporting.**
+- **Optional CTF-oriented candidate discovery** for security challenge workflows.
 
-Rather than being a single extraction script, it's a **forensics pipeline**: it never just gives up when a target looks locked down. If the straightforward path is closed, it automatically pivots to a second line of attack and keeps looking for something exploitable — a stray debug console, a misconfigured security feature, a secret hiding in plain sight — until it can hand back either real content or a precise, reproducible explanation of the exact weakness that's blocking it.
-
-## Key capabilities
-
-- 🔓 **Dual-engine extraction** — a direct bootloader-level engine for unprotected targets, and an automatic fallback **Weakness-Hunting Engine** that kicks in the moment a board's security configuration (Secure Boot, Download Mode protection, Flash Encryption, ...) blocks the direct path. See [Dual-Engine Design](#dual-engine-design) below.
-- 🛰️ **Multi-ecosystem console discovery** — fingerprints and talks to AT firmware, ESP-IDF consoles, MicroPython REPLs, NodeMCU/Lua, and generic/CTF-style custom shells, then does a *deep dive* and a *dynamic command follow-up* (it parses a discovered `help` menu and tries the commands it finds — exactly what a human operator would do by hand).
-- 🧠 **Full-coverage secret recovery** — single-byte XOR and Base64 deobfuscation across the **entire** dump (not just a sample window), running at C-speed via precomputed translation tables: ~80–100× faster than a naive byte-by-byte scan, so nothing past the first few hundred KB gets missed.
-- 🗂️ **Structural parsing, not guessing** — a real ESP-IDF NVS (non-volatile storage) partition parser, and SPIFFS/LittleFS region carving that reads actual partition-table geometry instead of blind heuristics wherever real geometry is available.
-- 🔬 **Security configuration audit** — reads Secure Boot / Flash Encryption / eFuse state directly off the chip and flags exactly which protections are active, so the final report always explains *why* a path was or wasn't available.
-- 🧩 **Correlation engine** — merges every finding from every stage (security audit, console probe, static analysis, binary intelligence) into one confidence-ranked list instead of a wall of disconnected log lines.
-- 📋 **One unambiguous verdict, every run** — every session ends in exactly one of four states: content **extracted**, a specific weakness **pinpointed**, nothing found, or a clean/unprotected board — never a pile of logs you have to interpret yourself.
-- 🧾 **Writeup-ready reporting** — a structured diagnosis report, a plain-text `summary.txt`, a per-file "what to do with this" action list, and a full session history exportable as JSON or CSV for dropping straight into a CTF writeup.
-- 🛡️ **Crash-safe by design** — every captured byte hits disk immediately, with collision-proof filenames (microsecond + atomic counter) under concurrent saves; nothing is ever silently lost or overwritten, even mid-crash.
-- 🧪 **Read-only by default** — any console command that could reboot, reset, erase, or reformat the target is opt-in only (`--aggressive`), so normal operation can never damage a board you can't replace.
-
-## Dual-Engine Design
-
-This is the heart of the project, and the reason it was built the way it was.
-
-On a target with **no active protections**, the ROM bootloader answers directly: Shahin Extractor talks to it via `esptool`, reads the chip ID and eFuse/security state, and pulls a full flash dump. Simple, fast, done.
-
-But a board can also come back with **Secure Boot enabled, UART Download Mode disabled, or Flash Encryption turned on** — exactly the kind of target a competition is likely to throw at you to see if you give up. This is where the second engine takes over automatically, with no extra flag needed:
-
-1. **Passive listening** — captures anything the board says unprompted on reset (boot logs, stack traces, firmware banners).
-2. **Multi-ecosystem console probing** — actively tries to fingerprint a live debug console across five+ firmware ecosystems, then deep-dives and follows up dynamically on anything that responds.
-3. **Baud-rate sweep** — a last-resort scan across common baud rates, since a "silent" board is very often just a baud mismatch.
-
-Whatever gets captured through this second engine — a boot log, a console transcript — is pushed through **the exact same analysis stage** as a full flash dump: static secret scanning, deobfuscation, NVS parsing. In other words, a locked-down board doesn't end the run — it just changes *which* engine is doing the extracting.
+---
 
 ## Architecture
 
+Shahin Extractor is organized around two acquisition engines and a shared analysis pipeline.
+
 ```mermaid
 flowchart TD
-    START([Target wired over UART]) --> WIRE[Wiring Check]
-    WIRE --> SKIP{"--skip-bootloader?"}
+    A[ESP-Based Target] --> B[Acquisition Layer]
 
-    SKIP -- no --> BOOT["ENGINE 1 — Bootloader Probe\n(esptool sync)"]
-    SKIP -- yes --> FALLBACK
+    B --> C[Engine 1: ROM Bootloader]
+    B --> D[Engine 2: UART Software Inspection]
 
-    BOOT --> OK{Bootloader responded?}
+    C --> E[Firmware Dump]
+    C --> F[Chip and Security Information]
+    C --> G[Partition Extraction]
 
-    OK -- "yes (unprotected)" --> CHIP[Chip ID + eFuse / Security Info]
-    CHIP --> AUDIT[Security Audit\nSecure Boot / Flash Encryption / Download-Mode state]
-    AUDIT --> DUMP[Full Flash Dump + Partition-Table Carve]
-    DUMP --> ANALYSIS
+    D --> H[Passive UART Listening]
+    D --> I[Console Discovery]
+    D --> J[Baud Rate Discovery]
 
-    OK -- "no (locked / protected)" --> FALLBACK["ENGINE 2 — Weakness-Hunting Fallback"]
-    FALLBACK --> PASSIVE[Passive Listener\ncapture unprompted boot output]
-    PASSIVE --> CONSOLE["Multi-Ecosystem Console Prober\nAT / ESP-IDF / MicroPython / NodeMCU / generic"]
-    CONSOLE --> RESP{Console responded?}
-    RESP -- yes --> DEEP[Deep Dive +\nDynamic Command Follow-up]
-    RESP -- no --> NOTHING{Still nothing at all?}
-    NOTHING -- yes --> BAUD[Last-Resort Baud-Rate Scan]
-    NOTHING -- no --> ANALYSIS
-    DEEP --> ANALYSIS
-    BAUD --> ANALYSIS
+    E --> K[Analysis Pipeline]
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
 
-    ANALYSIS["ENGINE 3 — Analysis\n(runs on every captured artifact)"]
-    ANALYSIS --> A1[Static Secret Scan]
-    ANALYSIS --> A2[Binary Intelligence]
-    ANALYSIS --> A3[Full-Coverage XOR / Base64 Deobfuscation]
-    ANALYSIS --> A4[NVS Partition Structural Parse]
-    ANALYSIS --> A5[SPIFFS / LittleFS Region Extraction]
+    K --> L[Static Analysis]
+    K --> M[Automatic Extraction]
+    K --> N[Binary Intelligence]
+    K --> O[Deobfuscation]
+    K --> P[NVS Analysis]
+    K --> Q[Evidence Correlation]
 
-    A1 --> CORR
-    A2 --> CORR
-    A3 --> CORR
-    A4 --> CORR
-    A5 --> CORR
-
-    CORR["Correlation Engine\nmerge + confidence-rank every finding"] --> REPORT
-
-    REPORT["Diagnosis Report\n+ summary.txt + JSON/CSV history export"] --> VERDICT{Final verdict}
-
-    VERDICT --> V1([EXTRACTED\ncontent recovered])
-    VERDICT --> V2([BLOCKED — WEAKNESS FOUND\nspecific mechanism pinpointed])
-    VERDICT --> V3([BLOCKED — NO FINDINGS])
-    VERDICT --> V4([CLEAN\nno protections present])
+    L --> R[Diagnosis and Reporting]
+    M --> R
+    N --> R
+    O --> R
+    P --> R
+    Q --> R
 ```
 
-## What it detects
+### Engine 1 — ROM Bootloader Acquisition
 
-| Category | Examples |
+The first engine communicates directly with the ESP ROM bootloader through a serial interface.
+
+Its workflow includes:
+
+- Bootloader synchronization and connection handling.
+- Automatic retry logic.
+- Alternative synchronization using the no-stub mode.
+- Chip identification and device information collection.
+- Flash identification.
+- Security configuration inspection.
+- Full flash acquisition when enabled.
+- Partition table parsing.
+- Extraction of recognized partitions.
+
+The engine uses `esptool` for ESP bootloader communication and integrates security inspection through the ESP tooling ecosystem.
+
+### Engine 2 — UART Software Inspection
+
+The second engine focuses on discovering information exposed through the device's serial interface.
+
+It combines passive UART observation, console probing, response analysis, and baud-rate discovery.
+
+The console prober includes ecosystem-specific handling for:
+
+- Generic text-based consoles
+- AT firmware
+- ESP-IDF consoles
+- MicroPython
+- NodeMCU Lua
+- U-Boot-like interfaces
+- Common CTF-oriented interfaces
+
+The probing workflow can capture an idle baseline, distinguish meaningful responses from background output, inspect help responses, and perform follow-up discovery based on observed console behavior.
+
+This engine helps identify accessible software interfaces and information exposed by the target without requiring a successful firmware dump.
+
+---
+
+## Security Configuration Assessment
+
+Shahin Extractor collects and analyzes device security information to provide a structured view of relevant ESP security settings.
+
+The security assessment covers available information related to:
+
+- Secure Boot
+- Flash Encryption
+- UART download restrictions
+- Secure Download Mode
+- Anti-rollback protection
+- JTAG disable configuration
+- eFuse key read and write protection
+- Download command restrictions
+
+Security states are represented using:
+
+- `ON`
+- `OFF`
+- `UNKNOWN`
+- `N/A`
+
+The assessment uses chip information and eFuse-related data to organize security configuration findings.
+
+---
+
+## Firmware Analysis Pipeline
+
+After firmware acquisition, the analysis pipeline processes the available binary data through multiple specialized modules.
+
+### Static Analysis
+
+The static analysis module examines firmware content and identifies useful indicators, including:
+
+- Printable strings
+- Potential secrets and sensitive patterns
+- Entropy measurements
+- Binary regions of interest
+- Optional Binwalk-based analysis
+
+### Automatic Content Extraction
+
+The automatic extraction module searches firmware artifacts for structured and potentially useful content, including:
+
+- JSON-like data
+- Environment variables
+- Key-value configurations
+- Base64-encoded candidates
+- Other recognizable configuration patterns
+
+### Binary Intelligence
+
+The binary intelligence module performs deeper inspection of binary content through:
+
+- Printable-region identification
+- Configuration candidate discovery
+- Region scoring
+- Prioritization of potentially relevant binary areas
+
+### Deobfuscation
+
+The deobfuscation module applies heuristic techniques to identify potentially recoverable content.
+
+Implemented techniques include:
+
+- Single-byte XOR analysis
+- Base64 decoding
+- Sliding-window analysis
+- Confidence-based candidate evaluation
+
+### NVS Analysis
+
+The NVS analysis module inspects ESP-IDF Non-Volatile Storage structures.
+
+It supports analysis of:
+
+- NVS pages and entries
+- Namespaces
+- Primitive integer values
+- Strings
+- Blobs and blob data
+
+This helps identify configuration values and stored information that may be relevant during firmware investigations.
+
+### Partition and Filesystem Analysis
+
+The partition analysis module parses supported ESP partition tables and extracts recognized partitions for further inspection.
+
+Optional filesystem carving provides additional analysis of SPIFFS and LittleFS-related data.
+
+### CTF-Oriented Analysis
+
+An optional CTF mode can identify flag-like patterns and other challenge-related candidates during analysis.
+
+This functionality is intended to assist investigation workflows by prioritizing potentially relevant content.
+
+---
+
+## Evidence Correlation and Diagnosis
+
+One of the central components of Shahin Extractor is its evidence correlation and diagnosis layer.
+
+Instead of presenting every scanner result as an isolated finding, the framework collects relevant evidence from different analysis modules and evaluates their relationship.
+
+Evidence may originate from:
+
+- Security configuration assessment
+- UART console inspection
+- Static secret scanning
+- Automatic content extraction
+- NVS analysis
+- Deobfuscation results
+
+The correlation layer evaluates the available evidence and assigns an assessment level:
+
+- `STRONG`
+- `PARTIAL`
+- `WEAK`
+
+The diagnosis component then generates a structured result describing the acquisition outcome and relevant findings.
+
+Supported diagnosis verdicts include:
+
+- `EXTRACTED`
+- `BLOCKED_WITH_FINDINGS`
+- `BLOCKED_NO_FINDINGS`
+
+The resulting report can include:
+
+- Chip identification
+- Bootloader reachability
+- Synchronization fallback information
+- Security feature states
+- Identified weakness findings
+- UART console responsiveness
+- Extraction path
+- Ciphertext status
+- Files requiring manual review
+- Correlation assessment
+- Ranked findings
+
+This approach helps researchers move from raw acquisition artifacts toward a more organized understanding of the target.
+
+---
+
+## Reporting and Session Management
+
+Each execution creates an organized session containing acquisition artifacts, analysis outputs, and diagnostic information.
+
+The reporting system uses multiple output formats to support both automated processing and manual investigation.
+
+### Output Structure
+
+```text
+session/
+├── raw/
+│   ├── firmware.bin
+│   └── extracted_artifacts/
+│
+├── analysis/
+│   ├── static_analysis.json
+│   ├── auto_extraction.json
+│   ├── binary_intel.json
+│   ├── deobfuscation.json
+│   ├── nvs_analysis.json
+│   ├── correlation.json
+│   └── diagnosis_report.json
+│
+├── history.sqlite3
+├── history_export.json
+├── summary.txt
+└── session.log
+```
+
+The exact files generated depend on the acquisition path and enabled analysis options.
+
+### Reporting Capabilities
+
+- Per-stage JSON analysis results.
+- Consolidated diagnosis report.
+- Evidence correlation output.
+- Ranked findings for manual review.
+- SQLite-based session history.
+- JSON and CSV history export.
+- Human-readable execution summary.
+- Raw acquisition artifacts for further investigation.
+
+The structured output makes it possible to review findings independently, integrate results into other workflows, and preserve evidence for subsequent analysis.
+
+---
+
+## Supported Hardware and Communication
+
+Shahin Extractor is designed for ESP-family devices accessible through a UART serial interface.
+
+The project includes board profiles for multiple ESP chip families, including:
+
+- ESP8266
+- ESP32
+- ESP32-C2
+- ESP32-C3
+- ESP32-C5
+- ESP32-C6
+- ESP32-C61
+- ESP32-H2
+- ESP32-H4
+- ESP32-H21
+- ESP32-P4
+- ESP32-S2
+- ESP32-S3
+- ESP32-S31
+
+Board profiles provide chip-specific configuration information for the framework's security assessment workflow.
+
+### Hardware Interface
+
+The primary communication interface is UART.
+
+Typical connections:
+
+| USB-UART Adapter | ESP Target |
 |---|---|
-| Security misconfiguration | Secure Boot and Flash Encryption only partially enabled, inconsistent eFuse state |
-| Leftover debug surfaces | AT command sets, ESP-IDF monitor, MicroPython REPL, NodeMCU/Lua, custom/CTF shells |
-| Hardcoded secrets | Wi-Fi credentials, MQTT credentials, API keys, passwords, tokens |
-| Light obfuscation | Single-byte XOR, Base64-encoded payloads |
-| Structured storage | NVS key/value entries, config-like blobs |
-| Boot-time leakage | Stack traces, firmware/version banners, debug prints |
+| TX | RX |
+| RX | TX |
+| GND | GND |
 
-## Project structure
+Use the appropriate voltage levels for the target device and adapter.
 
-```
-shahin-extractor/
-├── main.py                  # CLI entry point — orchestrates the full pipeline
-├── modules/
-│   ├── bootloader_probe.py  # esptool sync, chip ID, eFuse/security read, full dump
-│   ├── security_audit.py    # Secure Boot / Flash Encryption configuration audit
-│   ├── wiring_check.py      # Sanity-checks UART wiring before anything else
-│   ├── passive_listener.py  # Captures whatever the board says unprompted on boot
-│   ├── console_prober.py    # Multi-ecosystem debug console probing (AT/ESP-IDF/...)
-│   ├── baud_scanner.py      # Last-resort baud-rate sweep
-│   ├── serial_session.py    # Shared serial I/O with deadline-respecting waits
-│   ├── post_analysis.py     # strings-style scan + filesystem hints over a dump
-│   ├── static_analysis.py   # Regex/JSON-aware hardcoded-secret scanning
-│   ├── auto_extractor.py    # Automatic extraction of recognizable embedded content
-│   ├── binary_intel.py      # Binary structure / magic-byte intelligence
-│   ├── deobfuscator.py      # Full-coverage, high-speed XOR / Base64 secret recovery
-│   ├── nvs_helper.py        # ESP-IDF NVS partition structural parser
-│   ├── region_extractor.py  # SPIFFS/LittleFS region carving + unpacking
-│   ├── correlation_engine.py# Merges all findings into a ranked result set
-│   ├── diagnosis_report.py  # Renders the single final verdict + full report
-│   ├── storage.py           # Crash-safe session storage (unique filenames, locking)
-│   ├── logger_setup.py      # Session-scoped logging
-│   └── ctf_triage.py        # Optional, off-by-default CTF-candidate pattern triage
-├── boards/                  # Per-chip board profiles (ESP8266, ESP32 + variants)
-├── tests/                   # unittest-based test suite
-├── run_tests.py             # Canonical test runner
-├── e2e_smoke.py             # Quick end-to-end sanity check against synthetic data
-├── requirements.txt
-└── VERSION
+For direct ROM bootloader acquisition, the target must be placed in its Bootloader / Download Mode when required by the chip.
+
+---
+
+## Requirements
+
+- Python 3
+- Linux, macOS, or Windows
+- UART-compatible USB adapter
+- Supported ESP target
+- Required Python dependencies
+
+### Python Dependencies
+
+The core requirements include:
+
+```text
+pyserial==3.5
+esptool==4.8.1
 ```
 
-## Getting started
+Additional utilities such as Binwalk and filesystem-related tools can be used for optional analysis features.
 
-### Prerequisites
+---
 
-- Python 3.9+
-- A USB-TTL (UART) adapter wired to the target board's TX/RX/GND
-- Linux is recommended (serial device paths like `/dev/ttyUSB0`); also works on macOS/Windows with the appropriate port name (`/dev/tty.*`, `COM3`, ...)
+## Installation
 
-### Installation
+Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/shahin-extractor.git
+git clone https://github.com/amirali-cheraghi-cyber/shahin-extractor.git
+```
+
+Enter the project directory:
+
+```bash
 cd shahin-extractor
-python3 -m venv .venv && source .venv/bin/activate   # optional but recommended
+```
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-> Dependencies are **pinned to exact versions on purpose**: two modules parse `esptool`/`espefuse`'s text output by matching specific phrases. Before relying on this in a competition, install the pinned versions and run the tool once against a test board to confirm chip/flash detection still populates correctly.
+---
 
 ## Usage
 
-```bash
-# Full run against a board on /dev/ttyUSB0
-python3 main.py --port /dev/ttyUSB0 --baud 115200
-
-# Skip the bootloader stage and just listen passively for 10s
-python3 main.py --port /dev/ttyUSB0 --skip-bootloader --listen-seconds 10
-
-# Quick baud-rate sweep only, then exit
-python3 main.py --port /dev/ttyUSB0 --scan-baud
-
-# Also carve out SPIFFS/LittleFS filesystem regions as separate files
-python3 main.py --port /dev/ttyUSB0 --carve-filesystems
-
-# Export the full session history as CSV instead of JSON, for a writeup
-python3 main.py --port /dev/ttyUSB0 --export csv
-
-# Print the installed version
-python3 main.py --version
-```
-
-### CLI reference
-
-| Flag | Default | Description |
-|---|---|---|
-| `--port` | *(required)* | Serial port, e.g. `/dev/ttyUSB0` |
-| `--baud` | `115200` | Serial baud rate |
-| `--bootloader-baud` | `115200` | Baud rate for the bootloader stage specifically |
-| `--flash-size` | auto-detect | Flash size for a full dump, e.g. `0x400000` for 4MB |
-| `--listen-seconds` | `5.0` | How long the passive listener waits |
-| `--skip-bootloader` | off | Skip the bootloader-stage attempt entirely |
-| `--skip-console` | off | Skip debug-console probing |
-| `--skip-dump` | off | Recon only — no full flash dump |
-| `--skip-static-analysis` | off | Skip the secret/binary-intel analysis stage |
-| `--carve-filesystems` | off | Also carve heuristically-detected SPIFFS/LittleFS regions as separate files |
-| `--aggressive` | off | Also try console commands that could reboot/reset/erase the board |
-| `--no-baud-fallback` | off | Don't auto-run a baud scan as a last resort |
-| `--export` | `json` | History export format: `json` or `csv` |
-| `--no-prompt` | off | Skip the "press Enter once board is in bootloader mode" pause |
-| `--ctf-mode` | off | Enable optional CTF-candidate pattern triage |
-| `--scan-baud` | off | Only scan common baud rates for readable traffic, then exit |
-
-## A note on baud rate
-
-`--baud` defaults to `115200`, which is correct for most boards' **normal
-firmware/console output** — but it is not universal, and getting it wrong
-is one of the most common reasons a board looks completely silent:
-
-- **ESP8266 boards in particular** print their very first ROM boot
-  messages at **74880 baud**, then switch to the firmware's own baud rate
-  (often 115200) afterward. If you only see garbage or nothing right at
-  boot, this is almost always why.
-- Custom/CTF-built boards may deliberately run their debug UART at a
-  non-standard rate as a (mild) deterrent.
-- If you're not sure what a specific board uses, don't guess — run
-  `python3 main.py --port /dev/ttyUSB0 --scan-baud` first. It sweeps all
-  common rates (`9600, 19200, 38400, 57600, 74880, 115200, 230400, 460800`)
-  and reports which one actually produces readable text. The main run also
-  triggers this automatically as a last resort if nothing is found at the
-  configured baud.
-
-In short: **check — don't assume — the baud rate per board**, especially
-when switching between an ESP8266 and an ESP32-family target, or between a
-stock board and a custom competition PCB.
-
-## Reporting
-
-Every session produces:
-
-- A **diagnosis report** with one of four clear verdicts (`EXTRACTED`, `BLOCKED_WITH_FINDINGS`, `BLOCKED_NO_FINDINGS`, `CLEAN`), the active security feature status, a confidence-ranked list of findings, and a per-file "what to do with this" action hint.
-- A plain-text `summary.txt` for a quick glance.
-- A full session event history (every stage, every outcome, every file produced) exportable as **JSON or CSV** — built to be dropped straight into a CTF writeup or incident report.
-- Every raw artifact captured during the run (dumps, console transcripts, boot logs) preserved untouched in the session folder, nothing is ever deleted.
-
-## Testing
+Run the framework with the target serial port:
 
 ```bash
-python3 run_tests.py
-# or
-python -m pytest tests/
+python main.py --port /dev/ttyUSB0
 ```
 
-25 tests cover core functionality, regression fixes, and documented weakness fixes — see [`CHANGELOG.md`](CHANGELOG.md) for the full history.
-
-## Tech stack
-
-- **Language:** Python 3 (100% of the codebase)
-- **Hardware interface:** [`esptool`](https://github.com/espressif/esptool) / `espefuse` (ESP bootloader & eFuse access), `pyserial` (raw UART)
-- **Storage:** SQLite-backed session history, JSON/CSV export
-- **Board data:** per-chip JSON profiles under `boards/`
-- **Testing:** `unittest` (stdlib), `pytest`-compatible
-
-## Scope & companion tool
-
-Shahin Extractor covers the **ESP family** (ESP8266, ESP32, and its variants) over UART. For hardware outside that scope — external SPI/I2C memory chips and STM32-family microcontrollers over SWD/JTAG — see the companion tool, **Shahin Ext2**.
-
-## Disclaimer
-
-Built strictly for **educational purposes and hardware CTF (Capture The Flag) competitions**, on hardware the operator owns or is explicitly authorized to test. It performs read-only analysis by default and never attempts to break cryptography — only to find and report configuration and implementation weaknesses.
-
-## Publishing this repo to GitHub
+On Windows, specify the appropriate COM port:
 
 ```bash
-cd shahin-extractor
-git init
-git add .
-git commit -m "Initial public release of Shahin Extractor"
-git branch -M main
-git remote add origin https://github.com/<your-username>/shahin-extractor.git
-git push -u origin main
+python main.py --port COM3
 ```
 
-`.gitignore` already excludes `__pycache__/`, virtual environments, and session output, so nothing generated at runtime gets committed by accident.
+### Common Examples
 
-## Changelog
+Specify the serial baud rate:
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the full release history.
+```bash
+python main.py --port /dev/ttyUSB0 --baud 115200
+```
+
+Skip bootloader acquisition:
+
+```bash
+python main.py --port /dev/ttyUSB0 --skip-bootloader
+```
+
+Skip console probing:
+
+```bash
+python main.py --port /dev/ttyUSB0 --skip-console
+```
+
+Skip the firmware dump:
+
+```bash
+python main.py --port /dev/ttyUSB0 --skip-dump
+```
+
+Enable filesystem carving:
+
+```bash
+python main.py --port /dev/ttyUSB0 --carve-filesystems
+```
+
+Enable CTF-oriented analysis:
+
+```bash
+python main.py --port /dev/ttyUSB0 --ctf-mode
+```
+
+Export session history:
+
+```bash
+python main.py --port /dev/ttyUSB0 --export
+```
+
+Scan common UART baud rates:
+
+```bash
+python main.py --port /dev/ttyUSB0 --scan-baud
+```
+
+---
+
+## Command-Line Options
+
+| Option | Description |
+|---|---|
+| `--port` | Serial port connected to the target |
+| `--baud` | UART baud rate |
+| `--bootloader-baud` | Bootloader communication baud rate |
+| `--flash-size` | Flash size configuration |
+| `--listen-seconds` | Passive UART listening duration |
+| `--skip-bootloader` | Skip the bootloader acquisition stage |
+| `--skip-console` | Skip console probing |
+| `--skip-dump` | Skip full flash dumping |
+| `--skip-static-analysis` | Skip the static and related binary-analysis pipeline |
+| `--carve-filesystems` | Enable optional filesystem carving |
+| `--aggressive` | Enable additional potentially disruptive console commands |
+| `--no-baud-fallback` | Disable automatic baud fallback |
+| `--export` | Export session history |
+| `--no-prompt` | Skip the interactive bootloader-mode confirmation |
+| `--ctf-mode` | Enable CTF-oriented candidate discovery |
+| `--scan-baud` | Scan supported common UART baud rates |
+
+---
+
+## Project Structure
+
+```text
+shahin-extractor/
+│
+├── main.py
+├── requirements.txt
+├── README.md
+│
+├── boards/
+│   └── ESP board profiles
+│
+├── engines/
+│   └── Acquisition engines
+│
+├── modules/
+│   ├── Static analysis
+│   ├── Automatic extraction
+│   ├── Binary intelligence
+│   ├── Deobfuscation
+│   ├── NVS analysis
+│   ├── Partition analysis
+│   └── Evidence correlation
+│
+└── reporting/
+    └── Diagnosis and reporting components
+```
+
+---
+
+## Development Status
+
+Shahin Extractor is an actively developing project.
+
+The current implementation brings together firmware acquisition, UART inspection, security assessment, binary analysis, evidence correlation, and structured reporting in one workflow.
+
+Future development will focus on improving analysis depth, expanding discovery capabilities, refining the acquisition workflow, and strengthening reporting and usability.
+
+The project is intended to evolve through continued development and new releases.
+
+---
+
+## Responsible Use
+
+Shahin Extractor is intended for authorized security research, firmware analysis, embedded-device assessment, educational purposes, and CTF environments.
+
+Only use the framework on devices you own or have explicit permission to assess.
+
+Some console commands, particularly when aggressive probing is enabled, may cause a target device to restart or modify its state. Use appropriate care when working with production hardware.
+
+---
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+This project is distributed under the MIT License. See the `LICENSE` file for details.
